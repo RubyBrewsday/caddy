@@ -165,6 +165,35 @@ create_ngrok_tunnels() {
   done
 }
 
+# Function to upgrade caddy
+upgrade_caddy() {
+  CADDY_URL="https://raw.githubusercontent.com/RubyBrewsday/caddy/main/caddy"
+  TEMP_FILE=$(mktemp)
+
+  echo "Downloading the latest version of caddy..."
+  curl -o $TEMP_FILE $CADDY_URL
+
+  # Check if the download was successful
+  if [[ $? -ne 0 ]]; then
+    echo "Failed to download the caddy script."
+    exit 1
+  fi
+
+  # Make the script executable
+  chmod +x $TEMP_FILE
+
+  # Move the script to the install directory
+  sudo mv $TEMP_FILE /usr/local/bin/caddy
+
+  # Verify installation
+  if command -v caddy &> /dev/null; then
+    echo "caddy has been upgraded successfully!"
+  else
+    echo "Upgrade failed. Please check the steps and try again."
+    exit 1
+  fi
+}
+
 # Read repos from YAML file before main script logic
 read_repos_from_yaml
 
@@ -194,8 +223,11 @@ case "$1" in
   uninstall)
     uninstall_caddy
     ;;
+  upgrade)
+    upgrade_caddy
+    ;;
   *)
-    echo "Usage: $0 {status|rebuild|fetch|pull|clone|checkout <branch> [services...|!exclude_services...]|tunnel|uninstall}"
+    echo "Usage: $0 {status|rebuild|fetch|pull|clone|checkout <branch> [services...|!exclude_services...]|tunnel|uninstall|upgrade}"
     exit 1
     ;;
 esac
