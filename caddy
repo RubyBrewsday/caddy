@@ -2,8 +2,8 @@
 
 # Function to read repos from YAML file
 read_repos_from_yaml() {
-  REPOS=($(yq eval '.repos[].name' repos.yml))
-  REPO_URLS=($(yq eval '.repos[].url' repos.yml))
+  REPOS=($(yq eval '.repos[].name' caddy.yml))
+  REPO_URLS=($(yq eval '.repos[].url' caddy.yml))
 }
 
 # Function to check if a repository exists locally, and clone if it doesn't
