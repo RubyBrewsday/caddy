@@ -2,8 +2,8 @@
 
 # Function to read repos from YAML file
 read_repos_from_yaml() {
-  REPOS=($(yq eval '.repos[].name' caddy.yml))
-  REPO_URLS=($(yq eval '.repos[].url' caddy.yml))
+  REPOS=($(yq eval '.repos[].name' repos.yml))
+  REPO_URLS=($(yq eval '.repos[].url' repos.yml))
 }
 
 # Function to check if a repository exists locally, and clone if it doesn't
@@ -27,13 +27,29 @@ check_git_status() {
   normal=$(tput sgr0)
   red=$(tput setaf 1)
   green=$(tput setaf 2)
+  yellow=$(tput setaf 3)
 
-  echo -e "${bold}Repository\t\tBranch\t\tStatus${normal}"
-  echo "---------------------------------------------------"
+  echo -e "${bold}Repository\t\tBranch\t\tStatus\t\tRemote${normal}"
+  echo "---------------------------------------------------------------"
   for repo in "${REPOS[@]}"; do
     cd "../$repo" || exit
     BRANCH=$(git branch --show-current)
     STATUS=$(git status --short)
+    git fetch
+
+    LOCAL=$(git rev-parse @)
+    REMOTE=$(git rev-parse @{u})
+    BASE=$(git merge-base @ @{u})
+
+    if [ "$LOCAL" = "$REMOTE" ]; then
+      REMOTE_STATUS="${green}Up to date${normal}"
+    elif [ "$LOCAL" = "$BASE" ]; then
+      REMOTE_STATUS="${red}Need to pull${normal}"
+    elif [ "$REMOTE" = "$BASE" ]; then
+      REMOTE_STATUS="${yellow}Need to push${normal}"
+    else
+      REMOTE_STATUS="${red}Diverged${normal}"
+    fi
 
     if [ -n "$STATUS" ]; then
       STATUS_TEXT="${red}Unstaged/Staged changes${normal}"
@@ -41,7 +57,7 @@ check_git_status() {
       STATUS_TEXT="${green}Clean${normal}"
     fi
 
-    printf "%-20s\t%-15s\t%s\n" "$repo" "$BRANCH" "$STATUS_TEXT"
+    printf "%-20s\t%-15s\t%-25s\t%s\n" "$repo" "$BRANCH" "$STATUS_TEXT" "$REMOTE_STATUS"
     cd - > /dev/null || exit
   done
 }
@@ -122,6 +138,12 @@ rebuild_services() {
   docker-compose up -d
 }
 
+# Function to uninstall caddy
+uninstall_caddy() {
+  sudo rm -f /usr/local/bin/caddy
+  echo "caddy has been uninstalled successfully!"
+}
+
 # Read repos from YAML file before main script logic
 read_repos_from_yaml
 
@@ -145,8 +167,11 @@ case "$1" in
   checkout)
     checkout_and_pull_branch "$@"
     ;;
+  uninstall)
+    uninstall_caddy
+    ;;
   *)
-    echo "Usage: $0 {status|rebuild|fetch|pull|clone|checkout <branch> [services...|!exclude_services...]}"
+    echo "Usage: $0 {status|rebuild|fetch|pull|clone|checkout <branch> [services...|!exclude_services...]|uninstall}"
     exit 1
     ;;
 esac

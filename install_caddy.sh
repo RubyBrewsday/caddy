@@ -5,6 +5,7 @@ CADDY_URL="https://raw.githubusercontent.com/RubyBrewsday/caddy/main/caddy"
 
 # Directory to install the script
 INSTALL_DIR="/usr/local/bin"
+TEMP_FILE=$(mktemp)
 
 # Function to install yq on macOS
 install_yq_mac() {
@@ -47,13 +48,19 @@ else
 fi
 
 # Download the caddy script
-curl -o caddy $CADDY_URL
+curl -o $TEMP_FILE $CADDY_URL
+
+# Check if the download was successful
+if [[ $? -ne 0 ]]; then
+    echo "Failed to download the caddy script."
+    exit 1
+fi
 
 # Make the script executable
-chmod +x caddy
+chmod +x $TEMP_FILE
 
 # Move the script to the install directory
-sudo mv caddy $INSTALL_DIR
+sudo mv $TEMP_FILE $INSTALL_DIR/caddy
 
 # Verify installation
 if command -v caddy &> /dev/null; then
