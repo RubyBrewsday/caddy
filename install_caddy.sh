@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # URL to the caddy script
-CADDY_URL="https://raw.githubusercontent.com/yourusername/yourrepo/main/caddy"
+CADDY_URL="https://raw.githubusercontent.com/RubyBrewsday/caddy/main/caddy"
 
 # Directory to install the script
 INSTALL_DIR="/usr/local/bin"
