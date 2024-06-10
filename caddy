@@ -225,6 +225,10 @@ case "$1" in
   checkout)
     checkout_and_pull_branch "$@"
     ;;
+  debug)
+    echo "REPOS: ${REPOS[@]}"
+    echo "REPO_URLS: ${REPO_URLS[@]}"
+    ;;
   tunnel)
     create_ngrok_tunnels
     ;;
