@@ -154,8 +154,16 @@ uninstall_caddy() {
 # Function to create ngrok tunnels
 create_ngrok_tunnels() {
   read_ngrok_config_from_yaml
-  echo "Authenticating ngrok..."
-  ngrok authtoken $NGROK_AUTH_TOKEN
+
+  # Check if ngrok auth token is already set
+  CURRENT_AUTH_TOKEN=$(ngrok config check | grep -oP '(?<=auth_token: ).*')
+
+  if [ -z "$CURRENT_AUTH_TOKEN" ]; then
+    echo "Authenticating ngrok with provided auth token..."
+    ngrok authtoken $NGROK_AUTH_TOKEN
+  else
+    echo "ngrok is already authenticated with the existing auth token."
+  fi
 
   for i in "${!TUNNELS[@]}"; do
     tunnel="${TUNNELS[$i]}"
