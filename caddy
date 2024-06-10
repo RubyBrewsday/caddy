@@ -1,0 +1,152 @@
+#!/bin/bash
+
+# Function to read repos from YAML file
+read_repos_from_yaml() {
+  REPOS=($(yq eval '.repos[].name' caddy.yml))
+  REPO_URLS=($(yq eval '.repos[].url' caddy.yml))
+}
+
+# Function to check if a repository exists locally, and clone if it doesn't
+check_and_clone_repos() {
+  for i in "${!REPOS[@]}"; do
+    repo="${REPOS[$i]}"
+    url="${REPO_URLS[$i]}"
+
+    if [ ! -d "../$repo" ]; then
+      echo "Cloning $repo from $url"
+      git clone "$url" "../$repo"
+    else
+      echo "$repo already exists locally"
+    fi
+  done
+}
+
+# Function to check the git status of each repository
+check_git_status() {
+  bold=$(tput bold)
+  normal=$(tput sgr0)
+  red=$(tput setaf 1)
+  green=$(tput setaf 2)
+
+  echo -e "${bold}Repository\t\tBranch\t\tStatus${normal}"
+  echo "---------------------------------------------------"
+  for repo in "${REPOS[@]}"; do
+    cd "../$repo" || exit
+    BRANCH=$(git branch --show-current)
+    STATUS=$(git status --short)
+
+    if [ -n "$STATUS" ]; then
+      STATUS_TEXT="${red}Unstaged/Staged changes${normal}"
+    else
+      STATUS_TEXT="${green}Clean${normal}"
+    fi
+
+    printf "%-20s\t%-15s\t%s\n" "$repo" "$BRANCH" "$STATUS_TEXT"
+    cd - > /dev/null || exit
+  done
+}
+
+# Function to fetch the latest changes from each repository
+fetch_latest_changes() {
+  for repo in "${REPOS[@]}"; do
+    echo "Fetching latest changes for $repo"
+    cd "../$repo" || exit
+    git fetch
+    cd - || exit
+  done
+}
+
+# Function to pull the latest changes from each repository
+pull_latest_changes() {
+  for repo in "${REPOS[@]}"; do
+    echo "Pulling latest changes for $repo"
+    cd "../$repo" || exit
+    git pull
+    cd - || exit
+  done
+}
+
+# Function to checkout a specific branch and pull the latest changes, creating the branch if it doesn't exist
+checkout_and_pull_branch() {
+  if [ -z "$2" ]; then
+    echo "Error: No branch name provided."
+    echo "Usage: $0 checkout <branch> [services...]"
+    exit 1
+  fi
+
+  BRANCH_NAME="$2"
+  shift 2
+
+  INCLUDE_SERVICES=()
+  EXCLUDE_SERVICES=()
+
+  if [ "$#" -eq 0 ]; then
+    INCLUDE_SERVICES=("${REPOS[@]}")
+  else
+    for service in "$@"; do
+      if [[ "$service" == !* ]]; then
+        EXCLUDE_SERVICES+=("${service:1}")
+      else
+        INCLUDE_SERVICES+=("$service")
+      fi
+    done
+  fi
+
+  if [ "${#INCLUDE_SERVICES[@]}" -eq 0 ]; then
+    INCLUDE_SERVICES=("${REPOS[@]}")
+  fi
+
+  for repo in "${INCLUDE_SERVICES[@]}"; do
+    if [[ " ${EXCLUDE_SERVICES[@]} " =~ " $repo " ]]; then
+      echo "Skipping $repo"
+      continue
+    fi
+
+    echo "Checking out branch $BRANCH_NAME for $repo"
+    cd "../$repo" || exit
+    git fetch
+    if git rev-parse --verify "$BRANCH_NAME" >/dev/null 2>&1; then
+      git checkout "$BRANCH_NAME"
+    else
+      git checkout -b "$BRANCH_NAME"
+    fi
+    git pull origin "$BRANCH_NAME"
+    cd - || exit
+  done
+}
+
+# Function to rebuild all services
+rebuild_services() {
+  docker-compose down
+  docker-compose build --no-cache
+  docker-compose up -d
+}
+
+# Read repos from YAML file before main script logic
+read_repos_from_yaml
+
+# Main script logic
+case "$1" in
+  status)
+    check_git_status
+    ;;
+  rebuild)
+    rebuild_services
+    ;;
+  fetch)
+    fetch_latest_changes
+    ;;
+  pull)
+    pull_latest_changes
+    ;;
+  clone)
+    check_and_clone_repos
+    ;;
+  checkout)
+    checkout_and_pull_branch "$@"
+    ;;
+  *)
+    echo "Usage: $0 {status|rebuild|fetch|pull|clone|checkout <branch> [services...|!exclude_services...]}"
+    exit 1
+    ;;
+esac
