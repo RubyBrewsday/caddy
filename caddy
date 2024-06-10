@@ -6,6 +6,13 @@ read_repos_from_yaml() {
   REPO_URLS=($(yq eval '.repos[].url' caddy.yml))
 }
 
+# Function to read ngrok configuration from YAML file
+read_ngrok_config_from_yaml() {
+  NGROK_AUTH_TOKEN=$(yq eval '.ngrok.auth_token' caddy.yml)
+  TUNNELS=($(yq eval '.ngrok.tunnels[].name' caddy.yml))
+  PORTS=($(yq eval '.ngrok.tunnels[].port' caddy.yml))
+}
+
 # Function to check if a repository exists locally, and clone if it doesn't
 check_and_clone_repos() {
   for i in "${!REPOS[@]}"; do
@@ -144,6 +151,20 @@ uninstall_caddy() {
   echo "caddy has been uninstalled successfully!"
 }
 
+# Function to create ngrok tunnels
+create_ngrok_tunnels() {
+  read_ngrok_config_from_yaml
+  echo "Authenticating ngrok..."
+  ngrok authtoken $NGROK_AUTH_TOKEN
+
+  for i in "${!TUNNELS[@]}"; do
+    tunnel="${TUNNELS[$i]}"
+    port="${PORTS[$i]}"
+    echo "Creating ngrok tunnel for $tunnel on port $port..."
+    ngrok http $port > /dev/null &
+  done
+}
+
 # Read repos from YAML file before main script logic
 read_repos_from_yaml
 
@@ -167,11 +188,14 @@ case "$1" in
   checkout)
     checkout_and_pull_branch "$@"
     ;;
+  tunnel)
+    create_ngrok_tunnels
+    ;;
   uninstall)
     uninstall_caddy
     ;;
   *)
-    echo "Usage: $0 {status|rebuild|fetch|pull|clone|checkout <branch> [services...|!exclude_services...]|uninstall}"
+    echo "Usage: $0 {status|rebuild|fetch|pull|clone|checkout <branch> [services...|!exclude_services...]|tunnel|uninstall}"
     exit 1
     ;;
 esac
